@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Auditor Calidad ISO - AWS serverless infrastructure for code quality analysis
+  based on ISO 25010 standards.
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 300
+    MemorySize: 512
+    Environment:
+      Variables:
+        CODE_BUCKET: !Ref CodeBucket
+        REPORTS_BUCKET: !Ref ReportsBucket
+        RESULTS_TABLE: !Ref ResultsTable
+
+Resources:
+  # API Gateway
+  ApiGateway:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+
+  # Lambda Functions
+  IngestaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.handler
+      CodeUri: packages/lambdas/ingesta/
+      Timeout: 120
+      MemorySize: 512
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref CodeBucket
+      Events:
+        Analyze:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGateway
+            Path: /analyze
+            Method: POST
+
+  AnalyzerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.handler
+      CodeUri: packages/lambdas/analyzer/
+      Timeout: 300
+      MemorySize: 512
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref CodeBucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ResultsTable
+      Events:
+        RunAnalysis:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGateway
+            Path: /analyze/run
+            Method: POST
+
+  ReportGeneratorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.generateHandler
+      CodeUri: packages/lambdas/report-generator/
+      Timeout: 60
+      MemorySize: 256
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref ReportsBucket
+        - DynamoDBReadPolicy:
+            TableName: !Ref ResultsTable
+      Events:
+        GenerateReport:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGateway
+            Path: /report/generate
+            Method: POST
+
+  GetReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/index.getReportHandler
+      CodeUri: packages/lambdas/report-generator/
+      Timeout: 30
+      MemorySize: 256
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref ReportsBucket
+      Events:
+        GetReport:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref ApiGateway
+            Path: /report/{id}
+            Method: GET
+
+  # S3 Buckets
+  CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-code"
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteTempCode
+            Status: Enabled
+            ExpirationInDays: 1
+
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-reports"
+
+  # DynamoDB Table
+  ResultsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-results"
+      AttributeDefinitions:
+        - AttributeName: requestId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: requestId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  CodeBucketName:
+    Value: !Ref CodeBucket
+  ReportsBucketName:
+    Value: !Ref ReportsBucket
+  ResultsTableName:
+    Value: !Ref ResultsTable

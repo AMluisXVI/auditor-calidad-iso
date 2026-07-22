@@ -1,0 +1,19 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - npm install -g pnpm
+      - pnpm install --frozen-lockfile
+  build:
+    commands:
+      - pnpm --filter @auditor/shared typecheck
+      - pnpm --filter @auditor/ingesta typecheck
+      - pnpm --filter @auditor/analyzer typecheck
+      - pnpm --filter @auditor/report-generator typecheck
+
+artifacts:
+  files:
+    - '**/*'

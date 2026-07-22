@@ -1,0 +1,12 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "auditor-calidad-iso"
+resolve_s3 = true
+s3_prefix = "auditor-calidad-iso"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+
+[default.build.parameters]
+use_container = false

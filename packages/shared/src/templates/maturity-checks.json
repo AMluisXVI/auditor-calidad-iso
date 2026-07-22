@@ -1,0 +1,98 @@
+[
+  {
+    "id": "MAT-001",
+    "name": "Has README",
+    "description": "Repository includes a README file with project description and usage instructions.",
+    "weight": 3,
+    "category": "documentation",
+    "filePatterns": ["README.md", "README.rst", "README.txt", "readme.md"]
+  },
+  {
+    "id": "MAT-002",
+    "name": "Has LICENSE",
+    "description": "Repository includes an open source license file defining usage terms.",
+    "weight": 2,
+    "category": "documentation",
+    "filePatterns": ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "LICENCE.md"]
+  },
+  {
+    "id": "MAT-003",
+    "name": "Has Contributing Guide",
+    "description": "Repository includes contribution guidelines for collaborators.",
+    "weight": 1,
+    "category": "documentation",
+    "filePatterns": ["CONTRIBUTING.md", "DEVELOPMENT.md", "contributing.md", "docs/contributing.md"]
+  },
+  {
+    "id": "MAT-004",
+    "name": "Has CI/CD Pipeline",
+    "description": "Repository has continuous integration/deployment configuration.",
+    "weight": 3,
+    "category": "automation",
+    "filePatterns": [".github/workflows/*.yml", ".github/workflows/*.yaml", ".gitlab-ci.yml", "Jenkinsfile", ".circleci/config.yml"]
+  },
+  {
+    "id": "MAT-005",
+    "name": "Has Tests",
+    "description": "Repository includes a test directory or test files.",
+    "weight": 3,
+    "category": "quality",
+    "filePatterns": ["__tests__/**", "tests/**", "test/**", "spec/**", "**/*.test.ts", "**/*.spec.ts", "**/*.test.js", "**/*.spec.js"]
+  },
+  {
+    "id": "MAT-006",
+    "name": "Has Security Policy",
+    "description": "Repository includes a security disclosure policy.",
+    "weight": 2,
+    "category": "security",
+    "filePatterns": ["SECURITY.md", ".github/SECURITY.md", "security.md"]
+  },
+  {
+    "id": "MAT-007",
+    "name": "Has Environment Documentation",
+    "description": "Repository documents required environment variables with an example file.",
+    "weight": 1,
+    "category": "documentation",
+    "filePatterns": [".env.example", ".env.sample", ".env.template", "env.example"]
+  },
+  {
+    "id": "MAT-008",
+    "name": "Has Changelog",
+    "description": "Repository maintains a changelog documenting notable changes.",
+    "weight": 1,
+    "category": "documentation",
+    "filePatterns": ["CHANGELOG.md", "CHANGES.md", "HISTORY.md", "changelog.md"]
+  },
+  {
+    "id": "MAT-009",
+    "name": "Has Linting Configuration",
+    "description": "Repository has code linting or formatting configuration for consistent code style.",
+    "weight": 2,
+    "category": "quality",
+    "filePatterns": ["eslint.config.js", ".eslintrc*", ".prettierrc*", "prettier.config.*", "biome.json", ".biome.json"]
+  },
+  {
+    "id": "MAT-010",
+    "name": "Has Container Configuration",
+    "description": "Repository includes Docker or container configuration for reproducible environments.",
+    "weight": 2,
+    "category": "automation",
+    "filePatterns": ["Dockerfile", "docker-compose.yml", "docker-compose.yaml", ".dockerignore", "compose.yml", "compose.yaml"]
+  },
+  {
+    "id": "MAT-011",
+    "name": "Has Dependency Lockfile",
+    "description": "Repository includes a lockfile ensuring reproducible dependency installations.",
+    "weight": 2,
+    "category": "quality",
+    "filePatterns": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "Gemfile.lock", "poetry.lock", "Cargo.lock"]
+  },
+  {
+    "id": "MAT-012",
+    "name": "Has Type Checking",
+    "description": "Repository uses static type checking for improved code safety.",
+    "weight": 2,
+    "category": "quality",
+    "filePatterns": ["tsconfig.json", "tsconfig.*.json", ".flowconfig", "pyrightconfig.json", "mypy.ini"]
+  }
+]

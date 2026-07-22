@@ -1,0 +1,167 @@
+[
+  {
+    "id": "REC-001",
+    "findingType": "high-cyclomatic-complexity",
+    "characteristic": "Maintainability",
+    "title": "Reduce cyclomatic complexity",
+    "description": "Function has high cyclomatic complexity. Refactor into smaller, focused functions with single responsibilities.",
+    "priority": "high",
+    "effort": "medium",
+    "example": "// Before: one large function with many branches\nfunction process(data) {\n  if (data.type === 'A') { /* ... */ }\n  else if (data.type === 'B') { /* ... */ }\n}\n\n// After: strategy pattern\nconst handlers = { A: handleA, B: handleB };\nfunction process(data) {\n  return handlers[data.type](data);\n}",
+    "references": ["https://refactoring.guru/refactoring/techniques/simplifying-conditional-expressions"]
+  },
+  {
+    "id": "REC-002",
+    "findingType": "deep-nesting",
+    "characteristic": "Maintainability",
+    "title": "Reduce nesting depth with guard clauses",
+    "description": "Deeply nested code is harder to read. Use early returns and guard clauses to flatten control flow.",
+    "priority": "medium",
+    "effort": "low",
+    "example": "// Before: deep nesting\nfunction validate(user) {\n  if (user) {\n    if (user.email) {\n      if (user.age > 18) {\n        return true;\n      }\n    }\n  }\n  return false;\n}\n\n// After: guard clauses\nfunction validate(user) {\n  if (!user) return false;\n  if (!user.email) return false;\n  if (user.age <= 18) return false;\n  return true;\n}",
+    "references": ["https://refactoring.guru/replace-nested-conditional-with-guard-clauses"]
+  },
+  {
+    "id": "REC-003",
+    "findingType": "code-duplication",
+    "characteristic": "Maintainability",
+    "title": "Extract duplicated code into shared utilities",
+    "description": "Duplicated code increases maintenance cost and bug risk. Extract common logic into reusable modules.",
+    "priority": "high",
+    "effort": "medium",
+    "example": "// Before: duplicated validation in multiple files\n// fileA.ts: if (email && email.includes('@')) { ... }\n// fileB.ts: if (email && email.includes('@')) { ... }\n\n// After: shared utility\n// utils/validation.ts\nexport function isValidEmail(email: string): boolean {\n  return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n}",
+    "references": ["https://refactoring.guru/refactoring/techniques/composing-methods"]
+  },
+  {
+    "id": "REC-004",
+    "findingType": "sql-injection",
+    "characteristic": "Security",
+    "title": "Use parameterized queries to prevent SQL injection",
+    "description": "String concatenation in SQL queries allows injection attacks. Always use parameterized queries or prepared statements.",
+    "priority": "high",
+    "effort": "low",
+    "example": "// Before: vulnerable to SQL injection\nconst query = `SELECT * FROM users WHERE id = '${userId}'`;\n\n// After: parameterized query\nconst query = 'SELECT * FROM users WHERE id = $1';\nconst result = await db.query(query, [userId]);",
+    "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html"]
+  },
+  {
+    "id": "REC-005",
+    "findingType": "eval-usage",
+    "characteristic": "Security",
+    "title": "Replace eval() with safer alternatives",
+    "description": "eval() executes arbitrary code and is a critical security risk. Use JSON.parse for data or Function constructor only when absolutely necessary.",
+    "priority": "high",
+    "effort": "low",
+    "example": "// Before: dangerous eval\nconst config = eval('(' + configString + ')');\n\n// After: safe JSON parsing\nconst config = JSON.parse(configString);",
+    "references": ["https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/eval#never_use_eval!"]
+  },
+  {
+    "id": "REC-006",
+    "findingType": "hardcoded-secrets",
+    "characteristic": "Security",
+    "title": "Move secrets to environment variables or a secrets manager",
+    "description": "Hardcoded credentials in source code can be exposed through version control. Use environment variables or AWS Secrets Manager.",
+    "priority": "high",
+    "effort": "low",
+    "example": "// Before: hardcoded secret\nconst apiKey = 'sk-abc123secret';\n\n// After: environment variable\nconst apiKey = process.env.API_KEY;\nif (!apiKey) throw new Error('API_KEY environment variable is required');",
+    "references": ["https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html"]
+  },
+  {
+    "id": "REC-007",
+    "findingType": "missing-error-handling",
+    "characteristic": "Reliability",
+    "title": "Add structured error handling",
+    "description": "Unhandled errors can crash the application or expose sensitive information. Add try/catch blocks with proper error types and logging.",
+    "priority": "high",
+    "effort": "medium",
+    "example": "// Before: no error handling\nasync function fetchData(url) {\n  const response = await fetch(url);\n  return response.json();\n}\n\n// After: proper error handling\nasync function fetchData(url) {\n  try {\n    const response = await fetch(url);\n    if (!response.ok) {\n      throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n    }\n    return response.json();\n  } catch (error) {\n    logger.error('Failed to fetch data', { url, error });\n    throw error;\n  }\n}",
+    "references": ["https://www.typescriptlang.org/docs/handbook/2/narrowing.html#using-type-predicates"]
+  },
+  {
+    "id": "REC-008",
+    "findingType": "no-input-validation",
+    "characteristic": "Security",
+    "title": "Add input validation with schema libraries",
+    "description": "Unvalidated input can lead to injection attacks, crashes, and data corruption. Use Zod or Joi for runtime validation.",
+    "priority": "high",
+    "effort": "medium",
+    "example": "// Before: no validation\nfunction createUser(data: any) {\n  db.insert('users', data);\n}\n\n// After: schema validation with Zod\nimport { z } from 'zod';\nconst UserSchema = z.object({\n  email: z.string().email(),\n  name: z.string().min(1).max(100),\n  age: z.number().int().positive(),\n});\n\nfunction createUser(data: unknown) {\n  const validated = UserSchema.parse(data);\n  db.insert('users', validated);\n}",
+    "references": ["https://zod.dev/", "https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html"]
+  },
+  {
+    "id": "REC-009",
+    "findingType": "missing-https",
+    "characteristic": "Security",
+    "title": "Enforce HTTPS/TLS for all connections",
+    "description": "HTTP traffic can be intercepted. Enforce TLS for all external communications and redirect HTTP to HTTPS.",
+    "priority": "high",
+    "effort": "low",
+    "example": "// Before: allowing HTTP\napp.listen(3000);\n\n// After: enforce HTTPS redirect\napp.use((req, res, next) => {\n  if (req.headers['x-forwarded-proto'] !== 'https') {\n    return res.redirect(301, `https://${req.hostname}${req.url}`);\n  }\n  next();\n});",
+    "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Security_Cheat_Sheet.html"]
+  },
+  {
+    "id": "REC-010",
+    "findingType": "no-rate-limiting",
+    "characteristic": "Security",
+    "title": "Implement rate limiting to prevent abuse",
+    "description": "Without rate limiting, APIs are vulnerable to brute force attacks and denial of service. Add throttling per client.",
+    "priority": "medium",
+    "effort": "medium",
+    "example": "// Using express-rate-limit\nimport rateLimit from 'express-rate-limit';\n\nconst limiter = rateLimit({\n  windowMs: 15 * 60 * 1000, // 15 minutes\n  max: 100, // limit each IP to 100 requests per window\n  standardHeaders: true,\n  legacyHeaders: false,\n});\n\napp.use('/api/', limiter);",
+    "references": ["https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html"]
+  },
+  {
+    "id": "REC-011",
+    "findingType": "missing-security-headers",
+    "characteristic": "Security",
+    "title": "Add security headers with helmet middleware",
+    "description": "Missing security headers leave the application vulnerable to clickjacking, XSS, and MIME-sniffing attacks.",
+    "priority": "medium",
+    "effort": "low",
+    "example": "// Using helmet for Express\nimport helmet from 'helmet';\n\napp.use(helmet({\n  contentSecurityPolicy: true,\n  crossOriginEmbedderPolicy: true,\n  crossOriginOpenerPolicy: true,\n  crossOriginResourcePolicy: true,\n  hsts: { maxAge: 31536000, includeSubDomains: true },\n  noSniff: true,\n  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },\n}));",
+    "references": ["https://helmetjs.github.io/", "https://owasp.org/www-project-secure-headers/"]
+  },
+  {
+    "id": "REC-012",
+    "findingType": "no-logging",
+    "characteristic": "Reliability",
+    "title": "Add structured logging and monitoring",
+    "description": "Without logging, debugging production issues is extremely difficult. Add structured logging with context and severity levels.",
+    "priority": "medium",
+    "effort": "medium",
+    "example": "// Using a structured logger\nimport { Logger } from './logger';\n\nconst logger = new Logger({ service: 'user-api' });\n\nasync function createUser(data: UserInput) {\n  logger.info('Creating user', { email: data.email });\n  try {\n    const user = await db.create(data);\n    logger.info('User created', { userId: user.id });\n    return user;\n  } catch (error) {\n    logger.error('User creation failed', { error, email: data.email });\n    throw error;\n  }\n}",
+    "references": ["https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs.html"]
+  },
+  {
+    "id": "REC-013",
+    "findingType": "missing-tests",
+    "characteristic": "Maintainability",
+    "title": "Add unit tests for critical paths",
+    "description": "Untested code is a liability during refactoring and deployments. Add tests for business logic, edge cases, and error paths.",
+    "priority": "medium",
+    "effort": "high",
+    "example": "// Example test with vitest\nimport { describe, it, expect } from 'vitest';\nimport { calculateScore } from './scoring';\n\ndescribe('calculateScore', () => {\n  it('returns 100 for a project with no findings', () => {\n    expect(calculateScore([])).toBe(100);\n  });\n\n  it('reduces score based on finding severity', () => {\n    const findings = [{ severity: 'critical' }];\n    expect(calculateScore(findings)).toBeLessThan(100);\n  });\n});",
+    "references": ["https://vitest.dev/guide/"]
+  },
+  {
+    "id": "REC-014",
+    "findingType": "no-ci-cd",
+    "characteristic": "Maintainability",
+    "title": "Add a CI/CD pipeline with GitHub Actions",
+    "description": "Manual deployments are error-prone. Automate testing, linting, and deployment with a CI/CD pipeline.",
+    "priority": "medium",
+    "effort": "medium",
+    "example": "# .github/workflows/ci.yml\nname: CI\non: [push, pull_request]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 20\n      - run: npm ci\n      - run: npm test\n      - run: npm run lint",
+    "references": ["https://docs.github.com/en/actions/quickstart"]
+  },
+  {
+    "id": "REC-015",
+    "findingType": "missing-documentation",
+    "characteristic": "Usability",
+    "title": "Add documentation with JSDoc and README",
+    "description": "Undocumented code slows down onboarding and increases the chance of misuse. Add JSDoc comments for public APIs and a comprehensive README.",
+    "priority": "low",
+    "effort": "medium",
+    "example": "/**\n * Analyzes a repository for code quality issues.\n *\n * @param request - Analysis request with repository URL and options\n * @returns Analysis result with findings, score, and recommendations\n * @throws {ValidationError} When the request is invalid\n *\n * @example\n * const result = await analyze({\n *   repositoryUrl: 'https://github.com/user/repo',\n *   language: 'typescript',\n * });\n */\nexport async function analyze(request: AnalysisRequest): Promise<AnalysisResult> {\n  // ...\n}",
+    "references": ["https://jsdoc.app/", "https://www.makeareadme.com/"]
+  }
+]
