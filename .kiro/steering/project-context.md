@@ -9,7 +9,7 @@ Auditor Calidad ISO is an AWS-based code quality auditor that analyzes source co
 - **Package Manager**: pnpm with workspaces
 - **Module System**: ESNext modules with bundler resolution
 - **Frontend**: React 18 + Vite 5
-- **Infrastructure**: AWS SAM (Lambda, S3, DynamoDB, Step Functions)
+- **Infrastructure**: AWS SAM (Lambda, S3, DynamoDB, API Gateway)
 
 ## Monorepo Structure
 - `packages/shared/` — Shared types and templates (`@auditor/shared`)

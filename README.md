@@ -194,7 +194,7 @@ Ver [ARCHITECTURE.md](./ARCHITECTURE.md) para el deep-dive técnico completo.
 
 ## 👥 Equipo
 
-[Nombres de los integrantes del equipo]
+- Angel Manuel Luis XVI (@AMluisXVI)
 
 ## 📄 Licencia
 

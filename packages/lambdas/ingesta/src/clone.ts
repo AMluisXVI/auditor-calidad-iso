@@ -1,8 +1,11 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { Readable } from 'node:stream';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,22 +22,79 @@ export interface CloneResult {
   commitHash: string;
 }
 
-const VALID_URL_PATTERN = /^(https?:\/\/|git:\/\/)[^\s]+$/;
+const VALID_URL_PATTERN = /^https?:\/\/[^\s]+$/;
 
-const DEFAULT_DEPTH = 1;
 const DEFAULT_TIMEOUT = 60_000;
 const DEFAULT_MAX_SIZE_MB = 100;
+
+/** Private/internal IP ranges that must be blocked (SSRF protection) */
+const BLOCKED_IP_PATTERNS = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^fc00:/i,
+  /^fd/i,
+  /^fe80:/i,
+  /^::1$/,
+  /^localhost$/i,
+];
+
+/** Supported hosting platforms for tarball download */
+const PLATFORM_PATTERNS = [
+  {
+    name: 'github',
+    match: /^https?:\/\/(www\.)?github\.com\/([^/]+)\/([^/]+?)(\.git)?$/,
+    archiveUrl: (owner: string, repo: string, branch: string): string =>
+      `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.tar.gz`,
+  },
+  {
+    name: 'gitlab',
+    match: /^https?:\/\/(www\.)?gitlab\.com\/([^/]+)\/([^/]+?)(\.git)?$/,
+    archiveUrl: (owner: string, repo: string, branch: string): string =>
+      `https://gitlab.com/${owner}/${repo}/-/archive/${branch}/${repo}-${branch}.tar.gz`,
+  },
+];
 
 function validateRepositoryUrl(url: string): void {
   if (!url || url.trim().length === 0) {
     throw new Error('Repository URL is required');
   }
 
-  if (!VALID_URL_PATTERN.test(url.trim())) {
+  const trimmed = url.trim();
+
+  if (!VALID_URL_PATTERN.test(trimmed)) {
     throw new Error(
-      `Invalid repository URL: "${url}". Must start with https://, http://, or git://`
+      `Invalid repository URL: "${url}". Must start with https:// or http://`
     );
   }
+
+  // SSRF: Block private/internal IPs and metadata endpoints
+  const hostname = new URL(trimmed).hostname;
+  for (const pattern of BLOCKED_IP_PATTERNS) {
+    if (pattern.test(hostname)) {
+      throw new Error(
+        `Blocked repository URL: "${hostname}" resolves to a private/internal address`
+      );
+    }
+  }
+}
+
+function parseRepoUrl(url: string): { owner: string; repo: string; platform: typeof PLATFORM_PATTERNS[0] } {
+  const trimmed = url.trim();
+
+  for (const platform of PLATFORM_PATTERNS) {
+    const match = trimmed.match(platform.match);
+    if (match) {
+      return { owner: match[2], repo: match[3], platform };
+    }
+  }
+
+  throw new Error(
+    `Unsupported repository host. Currently supported: GitHub, GitLab. URL: "${url}"`
+  );
 }
 
 export async function cloneRepository(
@@ -43,55 +103,94 @@ export async function cloneRepository(
 ): Promise<CloneResult> {
   validateRepositoryUrl(repositoryUrl);
 
-  const depth = options?.depth ?? DEFAULT_DEPTH;
   const timeout = options?.timeout ?? DEFAULT_TIMEOUT;
   const maxSizeMB = options?.maxSizeMB ?? DEFAULT_MAX_SIZE_MB;
+  const branch = options?.branch ?? 'main';
+
+  const { owner, repo, platform } = parseRepoUrl(repositoryUrl);
+  const archiveUrl = platform.archiveUrl(owner, repo, branch);
 
   const tempDir = await mkdtemp(join(tmpdir(), 'auditor-clone-'));
+  const tarPath = join(tempDir, 'archive.tar.gz');
 
   try {
-    const cloneArgs = ['clone', '--depth', String(depth)];
+    // 1. Download tarball via HTTPS (no git binary needed)
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
 
-    if (options?.branch) {
-      cloneArgs.push('--branch', options.branch);
+    let response: Response;
+    try {
+      response = await fetch(archiveUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
     }
 
-    cloneArgs.push(repositoryUrl.trim(), tempDir);
+    if (!response.ok) {
+      // If main fails, try master as fallback
+      if (branch === 'main' && !options?.branch) {
+        const fallbackUrl = platform.archiveUrl(owner, repo, 'master');
+        const fallbackController = new AbortController();
+        const fallbackTimer = setTimeout(() => fallbackController.abort(), timeout);
 
-    await execFileAsync('git', cloneArgs, { timeout });
+        let fallbackResponse: Response;
+        try {
+          fallbackResponse = await fetch(fallbackUrl, { signal: fallbackController.signal });
+        } finally {
+          clearTimeout(fallbackTimer);
+        }
 
-    // Check repository size
-    const { stdout: sizeOutput } = await execFileAsync('du', ['-s', tempDir], {
-      timeout: 10_000,
-    });
-    const sizeKB = parseInt(sizeOutput.split('\t')[0], 10);
-    const sizeMB = sizeKB / 1024;
+        if (!fallbackResponse.ok) {
+          throw new Error(
+            `Failed to download repository archive: HTTP ${fallbackResponse.status}. Tried both 'main' and 'master' branches.`
+          );
+        }
+        response = fallbackResponse;
+      } else {
+        throw new Error(
+          `Failed to download repository archive: HTTP ${response.status} for branch '${branch}'`
+        );
+      }
+    }
 
+    if (!response.body) {
+      throw new Error('Empty response body from archive download');
+    }
+
+    // Write tarball to disk
+    const readable = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
+    await pipeline(readable, createWriteStream(tarPath));
+
+    // Check size before extraction
+    const tarStat = await stat(tarPath);
+    const sizeMB = tarStat.size / (1024 * 1024);
     if (sizeMB > maxSizeMB) {
-      await rm(tempDir, { recursive: true, force: true });
       throw new Error(
         `Repository exceeds maximum size: ${sizeMB.toFixed(1)}MB > ${maxSizeMB}MB`
       );
     }
 
-    // Get current commit hash
-    const { stdout: commitHash } = await execFileAsync(
-      'git',
-      ['rev-parse', 'HEAD'],
-      { cwd: tempDir, timeout: 5_000 }
-    );
+    // 2. Extract tarball
+    await execFileAsync('tar', ['-xzf', tarPath, '-C', tempDir], { timeout: 30_000 });
 
-    // Get current branch name
-    const { stdout: branchName } = await execFileAsync(
-      'git',
-      ['rev-parse', '--abbrev-ref', 'HEAD'],
-      { cwd: tempDir, timeout: 5_000 }
-    );
+    // tar extracts into a subdirectory like repo-branch/
+    const { stdout: lsOutput } = await execFileAsync('ls', [tempDir]);
+    const extractedDirName = lsOutput
+      .split('\n')
+      .find((name) => name !== 'archive.tar.gz' && name.length > 0);
+
+    if (!extractedDirName) {
+      throw new Error('Failed to find extracted directory');
+    }
+
+    const sourcePath = join(tempDir, extractedDirName);
+
+    // 3. Clean up tarball to save space
+    await rm(tarPath, { force: true });
 
     return {
-      localPath: tempDir,
-      branch: branchName.trim() || options?.branch || 'HEAD',
-      commitHash: commitHash.trim(),
+      localPath: sourcePath,
+      branch,
+      commitHash: 'archive', // No commit hash available from tarball
     };
   } catch (error) {
     // Cleanup on failure
@@ -101,12 +200,12 @@ export async function cloneRepository(
       if (error.message.includes('Repository exceeds maximum size')) {
         throw error;
       }
-      if ('killed' in error && (error as { killed?: boolean }).killed) {
-        throw new Error(`Clone timed out after ${timeout}ms`);
+      if (error.name === 'AbortError') {
+        throw new Error(`Download timed out after ${timeout}ms`);
       }
       throw error;
     }
 
-    throw new Error('Unknown error during clone');
+    throw new Error('Unknown error during repository download');
   }
 }

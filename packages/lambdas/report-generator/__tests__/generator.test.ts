@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateReport } from '../src/generator.js';
 import type { ReportInput } from '../src/generator.js';
-import type { Finding, MaturityResult, ComplexityMetrics, DuplicationResult } from '@auditor/shared';
 
 const sampleInput: ReportInput = {
   requestId: 'test-123',

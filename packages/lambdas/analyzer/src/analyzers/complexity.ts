@@ -12,7 +12,7 @@ export function analyzeComplexity(
   options?: ComplexityAnalyzerOptions
 ): { metrics: ComplexityMetrics; findings: Finding[] } {
   const maxComplexity = options?.maxComplexity ?? 10;
-  const _maxFunctionLength = options?.maxFunctionLength ?? 50;
+  const maxFunctionLength = options?.maxFunctionLength ?? 50;
 
   const report = escomplex.analyzeModule(sourceCode, {});
 
@@ -45,6 +45,18 @@ export function analyzeComplexity(
         file: filename,
         message: `Function '${fn.name}' has cyclomatic complexity of ${fn.complexity} (threshold: ${maxComplexity})`,
         rule: 'cyclomatic-complexity',
+      });
+    }
+
+    if (fn.loc > maxFunctionLength) {
+      findings.push({
+        id: `function-length-${filename}-${fn.name}`,
+        characteristic: 'Maintainability',
+        subcharacteristic: 'Analysability',
+        severity: fn.loc > maxFunctionLength * 2 ? 'major' : 'minor',
+        file: filename,
+        message: `Function '${fn.name}' is ${fn.loc} lines long (threshold: ${maxFunctionLength})`,
+        rule: 'function-length',
       });
     }
   }

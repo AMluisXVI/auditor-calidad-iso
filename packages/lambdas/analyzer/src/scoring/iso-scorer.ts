@@ -1,4 +1,4 @@
-import type { Finding, ISOScore, ISO25010Characteristic } from '@auditor/shared';
+import type { Finding, ISOScore } from '@auditor/shared';
 import { ISO25010_CHARACTERISTICS, DEFAULT_CHARACTERISTIC_WEIGHTS } from '@auditor/shared';
 
 export interface ScoringOptions {
