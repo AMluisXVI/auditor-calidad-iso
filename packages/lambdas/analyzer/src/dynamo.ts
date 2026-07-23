@@ -21,6 +21,9 @@ export async function saveAnalysisResult(
 
   const docClient = DynamoDBDocumentClient.from(client);
 
+  const TTL_DAYS = 30;
+  const ttl = Math.floor(Date.now() / 1000) + TTL_DAYS * 24 * 60 * 60;
+
   await docClient.send(
     new PutCommand({
       TableName: options.tableName,
@@ -35,6 +38,7 @@ export async function saveAnalysisResult(
         complexity: result.complexity,
         duplication: result.duplication,
         maturity: result.maturity,
+        ttl,
       },
     })
   );

@@ -30,6 +30,9 @@ Resources:
           - OPTIONS
         AllowHeaders:
           - Content-Type
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 10
+        ThrottlingRateLimit: 5
 
   # Lambda Functions
   IngestaFunction:
@@ -136,6 +139,9 @@ Resources:
         - AttributeName: requestId
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
 Outputs:
   ApiUrl:

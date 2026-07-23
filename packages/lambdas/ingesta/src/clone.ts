@@ -49,12 +49,22 @@ const PLATFORM_PATTERNS = [
     match: /^https?:\/\/(www\.)?github\.com\/([^/]+)\/([^/]+?)(\.git)?$/,
     archiveUrl: (owner: string, repo: string, branch: string): string =>
       `https://github.com/${owner}/${repo}/archive/refs/heads/${branch}.tar.gz`,
+    commitUrl: (owner: string, repo: string, branch: string): string =>
+      `https://api.github.com/repos/${owner}/${repo}/commits/${branch}`,
+    extractSha: (json: Record<string, unknown>): string =>
+      (json.sha as string) || 'unknown',
   },
   {
     name: 'gitlab',
     match: /^https?:\/\/(www\.)?gitlab\.com\/([^/]+)\/([^/]+?)(\.git)?$/,
     archiveUrl: (owner: string, repo: string, branch: string): string =>
       `https://gitlab.com/${owner}/${repo}/-/archive/${branch}/${repo}-${branch}.tar.gz`,
+    commitUrl: (owner: string, repo: string, branch: string): string =>
+      `https://gitlab.com/api/v4/projects/${encodeURIComponent(`${owner}/${repo}`)}/repository/branches/${encodeURIComponent(branch)}`,
+    extractSha: (json: Record<string, unknown>): string => {
+      const commit = json.commit as Record<string, unknown> | undefined;
+      return (commit?.id as string) || 'unknown';
+    },
   },
 ];
 
@@ -97,6 +107,27 @@ function parseRepoUrl(url: string): { owner: string; repo: string; platform: typ
   );
 }
 
+async function resolveCommitSha(
+  owner: string,
+  repo: string,
+  branch: string,
+  platform: typeof PLATFORM_PATTERNS[0]
+): Promise<string> {
+  try {
+    const commitUrl = platform.commitUrl(owner, repo, branch);
+    const headers: Record<string, string> = { 'User-Agent': 'auditor-calidad-iso' };
+
+    const res = await fetch(commitUrl, { headers, signal: AbortSignal.timeout(5_000) });
+    if (!res.ok) return 'unknown';
+
+    const json = await res.json() as Record<string, unknown>;
+    return platform.extractSha(json);
+  } catch {
+    // Non-critical: if we can't resolve the SHA, continue with 'unknown'
+    return 'unknown';
+  }
+}
+
 export async function cloneRepository(
   repositoryUrl: string,
   options?: CloneOptions
@@ -114,11 +145,12 @@ export async function cloneRepository(
   const tarPath = join(tempDir, 'archive.tar.gz');
 
   try {
-    // 1. Download tarball via HTTPS (no git binary needed)
+    // 1. Download tarball + resolve commit SHA in parallel
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
     let response: Response;
+    let actualBranch = branch;
     try {
       response = await fetch(archiveUrl, { signal: controller.signal });
     } finally {
@@ -145,6 +177,7 @@ export async function cloneRepository(
           );
         }
         response = fallbackResponse;
+        actualBranch = 'master';
       } else {
         throw new Error(
           `Failed to download repository archive: HTTP ${response.status} for branch '${branch}'`
@@ -155,6 +188,9 @@ export async function cloneRepository(
     if (!response.body) {
       throw new Error('Empty response body from archive download');
     }
+
+    // Resolve commit SHA (best-effort, non-blocking)
+    const commitHash = await resolveCommitSha(owner, repo, actualBranch, platform);
 
     // Write tarball to disk
     const readable = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
@@ -189,8 +225,8 @@ export async function cloneRepository(
 
     return {
       localPath: sourcePath,
-      branch,
-      commitHash: 'archive', // No commit hash available from tarball
+      branch: actualBranch,
+      commitHash,
     };
   } catch (error) {
     // Cleanup on failure
