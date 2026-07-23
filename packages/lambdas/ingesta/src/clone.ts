@@ -145,7 +145,7 @@ export async function cloneRepository(
   const tarPath = join(tempDir, 'archive.tar.gz');
 
   try {
-    // 1. Download tarball + resolve commit SHA in parallel
+    // 1. Download tarball via HTTPS (no git binary needed)
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
 
@@ -189,12 +189,15 @@ export async function cloneRepository(
       throw new Error('Empty response body from archive download');
     }
 
-    // Resolve commit SHA (best-effort, non-blocking)
-    const commitHash = await resolveCommitSha(owner, repo, actualBranch, platform);
+    // Resolve commit SHA in parallel with writing tarball to disk
+    const shaPromise = resolveCommitSha(owner, repo, actualBranch, platform);
 
     // Write tarball to disk
     const readable = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
     await pipeline(readable, createWriteStream(tarPath));
+
+    // Await SHA resolution (completes during or after download)
+    const commitHash = await shaPromise;
 
     // Check size before extraction
     const tarStat = await stat(tarPath);
